@@ -1,28 +1,19 @@
-//#include <stdint.h>	/* uint16_t, int16_t */
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-enum Type {
-	Operator = 0,
-	Identifier,
-	Punct,
-	Keyword,
-	Constant
-};
-
-struct Token {
-	char token[0x100];
-	enum Type type;
-};
-
-int is_digit(char);
-int is_alpha(char);
+#include "list.h"
+#include "node.h"
+#include "token.h"
 
 int main(int argc, char *argv[]) {
 	FILE *fd;
 	char *buf;
-	size_t len, index, i;
-	struct Token *tokens;
+	size_t len, i;
+	struct Node *n;
+	struct List *tokens;
+	char tok[0x100];
+	enum Type t;
 
 	if (argc < 2) {
 		puts("usage: ./lc3-cc <filename>");
@@ -39,74 +30,69 @@ int main(int argc, char *argv[]) {
 	fseek(fd, 0, SEEK_SET);
 
 	if ((buf = malloc(len+1)) == NULL) {
-		fprintf(stderr, "memory allocation failed\n");
+		fprintf(stderr, "error allocating memory [file buffer]\n");
 		exit(EXIT_FAILURE);
 	}
 
 	fread(buf, 1, len, fd);
-	buf[len] = EOF;
+	buf[len] = 0;
 
 	if (fclose(fd) == EOF) {
 		fprintf(stderr, "error closing file [%s]\n", argv[1]);
 		exit(EXIT_FAILURE);
 	}
 
-	if ((tokens = malloc(sizeof(struct Token) * len)) == NULL) {
-		fprintf(stderr, "error allocating token array\n");
-		exit(EXIT_FAILURE);
-	}
-
-	index = 0;
+	tokens = init_list();
 
 	for (char *s = buf; *s; ++s) {
-		if (*s == EOF) {
-			break;
-		}
-
-		if (is_digit(*s)) {
+		if (isdigit(*s)) {
 			i = 0;
 
-			tokens[index].token[i] = *s;
-			tokens[index].type = Constant;
+			tok[i] = *s;
+			t = Constant;
 			++s;
 
-			if (!(*s) || is_alpha(*s)) {
-				goto invalid_token;
+			if (!(*s) || isalpha(*s)) {
+				invalid_token(*s);
 			}
 
-			while (is_digit(*s)) {
-				tokens[index].token[++i] = *s;
+			while (isdigit(*s)) {
+				tok[++i] = *s;
 				++s;
 			}
 
-			tokens[index].token[++i] = 0;
-			++index;
+			tok[++i] = 0;
+
+			n = init_node(tok, t);
+			append(tokens, n);
 		}
-		else if (is_alpha(*s)) {
+		else if (isalpha(*s)) {
 			i = 0;
 
-			tokens[index].token[i] = *s;
-			tokens[index].type = Identifier;
+			tok[i] = *s;
+			t = Identifier;
 			++s;
 
 			if (!(*s)) {
-				goto invalid_token;
+				invalid_token(*s);
 			}
 
-			while (is_digit(*s) || is_alpha(*s)) {
-				tokens[index].token[++i] = *s;
+			while (isalnum(*s)) {
+				tok[++i] = *s;
 				++s;
 			}
 
-			tokens[index].token[++i] = 0;
-			++index;
+			tok[++i] = 0;
+			
+			n = init_node(tok, t);
+			append(tokens, n);
 		}
 
 		switch (*s) {
 		case '/':
 			++s;
 			if (!(*s)) {
-				goto invalid_token;
+				invalid_token(*s);
 			}
 
 			if (*s == '/') {
@@ -127,7 +113,7 @@ int main(int argc, char *argv[]) {
 				break;
 			}
 
-			goto invalid_token;
+			invalid_token(*s);
 		case '\n':
 		case '\t':
 		case '\r':
@@ -136,24 +122,25 @@ int main(int argc, char *argv[]) {
 		case '"':
 			++s;
 			if (!(*s)) {
-				goto invalid_token;
+				invalid_token(*s);
 			}
 
 			i = 0;
-			tokens[index].type = Constant;
+			t = Constant;
 
 			while (*s && *s != '"') {
-				tokens[index].token[i++] = *s; 
+				tok[i++] = *s; 
 				++s;
 			}
 
 			if (*s == '"') {
-				tokens[index].token[i] = 0;
-				++index;
+				tok[i] = 0;
+				n = init_node(tok, t);
+				append(tokens, n);
 				break;
 			}
 
-			goto invalid_token;
+			invalid_token(*s);
 		case '{':
 		case '}':
 		case '[':
@@ -162,99 +149,58 @@ int main(int argc, char *argv[]) {
 		case ')':
 		case ';':
 		case ',':
-			tokens[index].type = Punct;
-			tokens[index].token[0] = *s;
-			tokens[index].token[1] = 0;
-			++index;
+			t = Punct;
+			tok[0] = *s;
+			tok[1] = 0;
+			n = init_node(tok, t);
+			append(tokens, n);
 			break;
 		case '&':
 		case '+':
 		case '-':
 		case '~':
 		case '>':
-			tokens[index].type = Operator;
-			tokens[index].token[0] = *s;
-			tokens[index].token[1] = 0;
-			++index;
-			break;
+		case '<':
+		case '!':
 		case '=':
-			tokens[index].token[0] = *s;
+			tok[0] = *s;
 			++s;
 
 			if (!(*s)) {
-				goto invalid_token;
+				invalid_token(*s);
 			}
 
-			tokens[index].type = Operator;
+			t = Operator;
 
 			if (*s == '=') {
-				tokens[index].token[1] = *s;
-				tokens[index].token[2] = 0;
+				tok[1] = *s;
+				tok[2] = 0;
 			}
 			else {
 				--s;
-				tokens[index].token[1] = 0;
+				tok[1] = 0;
 			}
 
-			++index;
-			break;
-		case '<':
-			tokens[index].token[0] = *s;
-			++s;
-
-			if (!(*s)) {
-				goto invalid_token;
-			}
-
-			tokens[index].type = Operator;
-
-			if (*s == '>') {
-				tokens[index].token[1] = *s;
-				tokens[index].token[2] = 0;
-			}
-			else {
-				--s;
-				tokens[index].token[1] = 0;
-			}
-
-			++index;
+			n = init_node(tok, t);
+			append(tokens, n);
 			break;
 		default:
-			goto invalid_token;
+			invalid_token(*s);
 		};
 	}
 
 	if (!buf) {
-		goto invalid_pointer;
+		fprintf(stderr, "invalid pointer state [file buffer]\n");
+		exit(EXIT_FAILURE);
 	}
 
 	free(buf);
 
-	for (i = 0; i < index; ++i) {
-		printf("%s\t\t\t\t\t%d\n", tokens[i].token, tokens[i].type);
+	for (n = tokens->head; n; n = n->next) {
+		printf("%s %d\n", n->token->token, n->token->type);
 	}
 
-	if (!tokens) {
-		goto invalid_pointer;
-	}	
-
-	free(tokens);
+	free_list(tokens);
 
 	return EXIT_SUCCESS;
-
-invalid_token:
-	fprintf(stderr, "invalid token encountered\n");
-	exit(EXIT_FAILURE);
-invalid_pointer:
-	fprintf(stderr, "invalid pointer state\n");
-	exit(EXIT_FAILURE);
-}
-
-int is_digit(char c) {
-	return c >= 0x30 && c < 0x3a;
-}
-
-int is_alpha(char c) {
-	return (c >= 0x41 && c < 0x5b) ||
-		(c >= 0x61 && c < 0x7b);
 }
