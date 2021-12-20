@@ -1,5 +1,5 @@
 CFLAGS=-Wall -Werror
-OBJ=list.o node.o token.o
+OBJ=list.o node.o token.o parse.o
 
 all: lc3-cc
 
@@ -14,6 +14,9 @@ node.o: node.c
 
 token.o: token.c
 	gcc $(CFLAGS) -c token.c
+
+parse.o: parse.c
+	gcc $(CFLAGS) -c parse.c
 
 .PHONY:
 clean:

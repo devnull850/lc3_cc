@@ -4,6 +4,7 @@
 
 #include "list.h"
 #include "node.h"
+#include "parse.h"
 #include "token.h"
 
 int main(int argc, char *argv[]) {
@@ -197,7 +198,7 @@ int main(int argc, char *argv[]) {
 	free(buf);
 
 	for (n = tokens->head; n; n = n->next) {
-		printf("%s %d\n", n->token->token, n->token->type);
+		printf("%s %d %d\n", n->token->token, n->token->type, is_keyword(n->token->token));
 	}
 
 	free_list(tokens);
