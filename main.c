@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
 	size_t len, i;
 	struct Node *n;
 	struct List *tokens;
+	struct Tree *tree;
 	char tok[0x100];
 	enum Type t;
 
@@ -197,11 +198,8 @@ int main(int argc, char *argv[]) {
 
 	free(buf);
 
-	for (n = tokens->head; n; n = n->next) {
-		printf("%s %d %d\n", n->token->token, n->token->type, is_keyword(n->token->token));
-	}
-
-	free_list(tokens);
+	tree = parse_tokens(tokens);
+	free_tree(tree);
 
 	return EXIT_SUCCESS;
 }
